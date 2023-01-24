@@ -1,0 +1,7 @@
+old=$(ls | grep index.html | head -n 1)
+now=$(date +'_%m_%y')
+
+if [ $old = index.html ]; then
+        echo "index file already exists renaming it......!"
+        mv /var/www/html/index.html /var/www/html/index$now
+fi
