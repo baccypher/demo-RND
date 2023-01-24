@@ -11,7 +11,7 @@ hooks:
     - location: scripts/start_server
       timeout: 300
       runas: root
-    - location: scripts/rename_index
+    - location: scripts/move_index
       timeout: 300
       runas: root
   ApplicationStop:
