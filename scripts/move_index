@@ -1,4 +1,4 @@
-old=$(ls | grep index.html | head -n 1)
+old=$(ls /var/www/html/ | grep index.html | head -n 1)
 now=$(date +'_%m_%y')
 
 if [ $old = index.html ]; then
