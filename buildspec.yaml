@@ -1,0 +1,11 @@
+version: 0.2
+phases:
+  build:
+    commands:
+      - pwd
+      - ls -la
+#       rspec HelloWorld_spec.rb
+artifacts:
+  files:
+    - '**/*'
+  name: myname-$(date +%Y-%m-%d) 
