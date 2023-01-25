@@ -1,3 +1,4 @@
+#!/bin/bash
 old=$(ls /var/www/html/ | grep index.html | head -n 1)
 now=$(date +'_%m_%y')
 
