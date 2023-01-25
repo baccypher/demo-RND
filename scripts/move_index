@@ -1,8 +1,10 @@
 #!/bin/bash
 old=$(ls /var/www/html/ | grep index.html | head -n 1)
-now=$(date +'_%m_%y')
+now=$(date +'%d_%m_%y')
 
-if [ $old = index.html ]; then
-        echo "index file already exists renaming it......!"
-        mv /var/www/html/index.html /var/www/html/index$now
+if [ $old == "index.html" ]; then
+        echo "index file already exists moving it to backups..!"
+        mv /var/www/html/$old /git/index_backup/$old_$now
+else
+        echo "Deploying the index file"
 fi
