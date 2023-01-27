@@ -5,6 +5,7 @@ phases:
       - pwd
       - ls -la
 #       rspec HelloWorld_spec.rb
+      - echo build number is $CODEBUILD_BUILD_NUMBER 
 artifacts:
   files:
     - '**/*'
