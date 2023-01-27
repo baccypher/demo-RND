@@ -3,6 +3,7 @@ os: linux
 files:
   - source: /index.html
     destination: /var/www/html/
+  - echo exported build number is : $CODEBUILD_BUILD_NUMBER
 hooks:
   BeforeInstall:
     - location: scripts/install_dependencies
