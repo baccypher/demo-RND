@@ -1,6 +1,7 @@
 #!/bin/bash
 old=$(ls /var/www/html/ | grep index.html | head -n 1)
 now=$(date +'%d_%m_%y')
+echo $CODEBUILD_BUILD_NUMBER > /home/ubuntu/build_no.txt
 
 if [ $old == "index.html" ]; then
         echo "index file already exists moving it to backups..!"
