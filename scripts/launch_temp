@@ -1,0 +1,34 @@
+#!/bin/bash
+
+#command to get the build id......
+aws codebuild list-builds --sort-order DESCENDING > /home/forge/backups/json/build_ids.json
+build_id=`cat /home/forge/backups/json/build_ids.json | jq -r '.ids[0]'`
+
+echo "$build_id is your latest build ID..."
+
+#command to get the build no......
+aws codebuild batch-get-builds --ids $build_id > /home/forge/backups/json/build_no.json
+build_no=$(cat /home/forge/backups/json/build_no.json | jq '.builds[] | .buildNumber')
+
+echo "$build_no is the build no for the $build_id"
+
+#Pervious ami check 
+# aws ec2 describe-images --filters Name=name,Values=ctb-staging-api-$build_no >> /home/forge/backups/json/ami_lookup.json
+# ami_name=$(cat ami_lookup.json | jq -r '.Images[] | .Name')
+
+# if [ "$ami_name" == "ctb-staging-api-$build_no" ];then
+# echo "AMI already exists skipping this...!"
+# else
+# #command to create-image
+# aws ec2 create-image --instance-id i-0e842e7d2c11ced62 --name "ctb-staging-api-$build_no" --description "ami for ctb-staging-app" --no-reboot > /home/forge/backups/json/image_id.json
+# fi
+aws ec2 create-image --instance-id i-0e842e7d2c11ced62 --name "ctb-staging-api-$build_no" --description "ami for ctb-staging-app" --no-reboot > /home/forge/backups/json/image_id.json
+image_id=$(cat /home/forge/backups/json/image_id.json | jq '.ImageId')
+
+echo $image_id" is the new image id...."
+
+#command to create a launch template version.....
+aws ec2 create-launch-template-version --launch-template-id lt-074d984840585f44c --version-description ctb-staging --source-version 1 --launch-template-data file:///home/forge/backups/json/image_id.json
+
+#command to start instance-refresh
+aws autoscaling start-instance-refresh --auto-scaling-group-name ctb-staging --preferences '{"InstanceWarmup": 100, "MinHealthyPercentage": 50}'
