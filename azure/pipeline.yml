@@ -1,0 +1,228 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+parameters:
+  - name: BranchName
+    displayName: Select branch name
+    type: object
+    default: develop
+
+  - name: Appservice_for_deployment
+    displayName: Choose app service\env to deploy the build
+    type: string
+    default: test
+    values:
+      - test
+      - stage
+      - prod
+
+variables:
+- name: deploy_env
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/develop') }}:
+      value: 'TEST'
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/staging-v2') }}:
+      value: 'STAGE'
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/master-v2') }}:
+      value: 'PROD'
+
+- name: branch_env
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/develop') }}:
+      value: 'develop'
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/staging-v2') }}:
+      value: 'staging-v2'
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/master-v2') }}:
+      value: 'master-v2'
+
+- name: sub_name
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/develop') }}:
+      value: 'Secureprivacy-test'
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/staging-v2') }}:
+      value: 'Secureprivacy-test'
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/master-v2') }}:
+      value: 'Secureprivacy-Prod'
+
+- name: env_name 
+  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/develop') }}:
+      value: sp-node-test
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/staging-v2') }}:
+      value: sp-node-staging
+  ${{ elseif eq(variables['Build.SourceBranch'], 'refs/heads/master-v2') }}:
+      value: sp-node-prod
+
+- name: app_param
+  value: ${{ parameters.Appservice_for_deployment }}
+
+- name: app_name
+  ${{ if or(eq(variables['env_name'], 'sp-node-test') , eq(parameters['Appservice_for_deployment'], 'test')) }}:
+      value: sp-test-node-01 
+  ${{ elseif or(eq(variables['env_name'], 'sp-node-staging'), eq(parameters['Appservice_for_deployment'], 'stage')) }}:
+      value: sp-staging-node-v2-01
+  ${{ elseif or(eq(variables['env_name'], 'sp-node-prod'), eq(parameters['Appservice_for_deployment'], 'prod')) }}:
+      value: sp-prod-node-v2-01
+
+- name: SRCBranch
+  value: ${{ parameters.BranchName }}
+  # ${{ if eq(parameters['BranchName'], 'develop') }}:
+  #     value: develop
+  # ${{ if eq(parameters['BranchName'], 'staging-v2') }}:
+  #     value: staging-v2
+  # ${{ if eq(parameters['BranchName'], 'master-v2') }}:
+  #   value: master-v2
+  # ${{ if eq(variables['Build.Reason'], 'Manual') }}:
+  #     value: ${{ parameters.BranchName }}
+  # ${{ elseif eq(variables['Build.Reason'], 'IndividualCI') }}:
+  #     value: $(Build.SourceBranch)
+
+
+resources:
+    repositories:
+      - repository: Node_ci
+        type: git
+        name: secure-privacy-node
+        #ref: $(branch_env)
+        trigger:
+        - develop
+        - staging-v2
+        - master-v2
+
+trigger: none
+pool:
+  vmImage: ubuntu-latest
+stages:
+- stage: Build_Step
+  jobs:
+    - job:
+      steps:
+      # - checkout: self
+      - ${{ if eq(variables['Build.Reason'], 'Manual') }}:
+        - checkout: git://secure-privacy-node@$(SRCBranch)
+          clean: true
+          lfs: true
+      - ${{elseif eq(variables['Build.Reason'], 'IndividualCI') }}:
+        - checkout: git://secure-privacy-node@$(Build.SourceBranch)
+          clean: true
+          lfs: true
+      - script: ls -al
+      - script: echo $(SRCBranch),$(branch_env),$(sub_name),$(app_name)
+      - task: Docker@2
+        inputs:
+          containerRegistry: 'secureprivacy_container_reg'
+          repository: 'sp-node'
+          command: 'buildAndPush'
+          Dockerfile: '**/Dockerfile'
+          #Dockerfile: './secure-privacy-node/Dockerfile'
+
+
+- stage:  TEST_Release
+  condition: eq(variables['Build.Reason'], 'IndividualCI')
+  #condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/devops'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  #condition: and(not(failed('TEST_Release')), in(variables['Build.SourceBranch'], 'develop', 'TEST_Release'))
+  dependsOn: Build_Step
+  jobs:
+    - deployment: 
+      environment:
+        #name: '${{ variables.deploy_env }}'
+        name: TEST
+      displayName: Deploying_testing
+      variables:
+        test_app: sp-test-node-01
+      condition: eq(variables['Build.SourceBranch'], 'refs/heads/develop')
+      strategy:
+        runOnce: 
+          deploy:
+            steps:
+            - task: AzureRmWebAppDeployment@4
+              inputs:
+                ConnectionType: 'AzureRM'
+                azureSubscription: 'Secureprivacy-test'
+                appType: 'webAppContainer'
+                WebAppName: '$(test_app)'
+                DockerNamespace: 'secureprivacy.azurecr.io'
+                DockerRepository: 'sp-node'
+                DockerImageTag: '$(Build.BuildId)'
+
+- stage: STAGE_Release 
+  condition: eq(variables['Build.Reason'], 'IndividualCI')
+  dependsOn: Build_Step
+  jobs:
+    - deployment: 
+      environment:
+        #name: '${{ variables.deploy_env }}'
+        name: STAGE
+      displayName: Deploying_staging
+      variables:
+        stage_app: sp-staging-node-v2-01
+      strategy:
+        runOnce: 
+          deploy:
+            steps:
+            - task: AzureRmWebAppDeployment@4
+              inputs:
+                ConnectionType: 'AzureRM'
+                azureSubscription: 'Secureprivacy-test'
+                appType: 'webAppContainer'
+                WebAppName: '$(stage_app)'
+                DockerNamespace: 'secureprivacy.azurecr.io'
+                DockerRepository: 'sp-node'
+                DockerImageTag: '$(Build.BuildId)'
+
+- stage: PROD_Release 
+  condition: eq(variables['Build.Reason'], 'IndividualCI')
+  dependsOn: Build_Step
+  jobs:
+    - deployment: 
+      environment:
+        #name: '${{ variables.deploy_env }}'
+        name: PROD
+      displayName: Deploying_prod
+      variables:
+        prod_app: sp-prod-node-v2-01
+      strategy:
+        runOnce: 
+          deploy:
+            steps:
+            - task: AzureRmWebAppDeployment@4
+              inputs:
+                ConnectionType: 'AzureRM'
+                azureSubscription: 'SecurePrivacy-Prod'
+                appType: 'webAppContainer'
+                WebAppName: '$(prod_app)'
+                DockerNamespace: 'secureprivacy.azurecr.io'
+                DockerRepository: 'sp-node'
+                DockerImageTag: '$(Build.BuildId)'
+
+- stage: Manual_Release
+  condition: eq(variables['Build.Reason'], 'Manual')
+  dependsOn: Build_Step
+  jobs:
+    - deployment: 
+      environment:
+        #name: '${{ variables.deploy_env }}'
+        name: Manual_Job
+      displayName: Deploying_Manual_Job
+      strategy:
+        runOnce: 
+          deploy:
+            steps:
+            - task: AzureRmWebAppDeployment@4
+              condition: ne(variables['app_param'], 'prod')
+              inputs:
+                ConnectionType: 'AzureRM'
+                azureSubscription: 'Secureprivacy-test'
+                appType: 'webAppContainer'
+                WebAppName: '$(app_name)'
+                DockerNamespace: 'secureprivacy.azurecr.io'
+                DockerRepository: 'sp-node'
+                DockerImageTag: '$(Build.BuildId)'
+            - task: AzureRmWebAppDeployment@4
+              condition: eq(variables['app_param'], 'prod')
+              inputs:
+                ConnectionType: 'AzureRM'
+                azureSubscription: 'Secureprivacy-prod'
+                appType: 'webAppContainer'
+                WebAppName: '$(app_name)'
+                DockerNamespace: 'secureprivacy.azurecr.io'
+                DockerRepository: 'sp-node'
+                DockerImageTag: '$(Build.BuildId)'
