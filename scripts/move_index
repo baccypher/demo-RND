@@ -5,7 +5,7 @@ echo $CODEBUILD_BUILD_NUMBER > /home/ubuntu/build_no.txt
 
 if [ $old == "index.html" ]; then
         echo "index file already exists moving it to backups..!"
-        mv /var/www/html/$old /git/index_backup/index_$now
+        mv /var/www/html/$old /var/www/html/index_$now
 else
         echo "Deploying the index file"
 fi
